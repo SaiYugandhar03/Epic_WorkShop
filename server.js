@@ -33,34 +33,95 @@ function countNodes(node) {
   return 1 + children.reduce((total, child) => total + countNodes(child), 0)
 }
 
+const MAX_SUMMARY_DEPTH = 14
+const MAX_CHILDREN_PER_NODE = 14
+const MAX_SUMMARY_NODES = 400
+
+function colorChannelToHex(value) {
+  const clamped = Math.max(0, Math.min(1, Number(value) || 0))
+  return Math.round(clamped * 255).toString(16).padStart(2, '0')
+}
+
+function fillToHex(fills) {
+  if (!Array.isArray(fills)) {
+    return undefined
+  }
+
+  const solid = fills.find((fill) => fill?.type === 'SOLID' && fill.visible !== false && fill.color)
+  if (!solid) {
+    return undefined
+  }
+
+  const { r, g, b } = solid.color
+  return `#${colorChannelToHex(r)}${colorChannelToHex(g)}${colorChannelToHex(b)}`
+}
+
+function summarizeNode(node, depth, counter) {
+  if (!node || typeof node !== 'object' || counter.count >= MAX_SUMMARY_NODES) {
+    return null
+  }
+
+  counter.count += 1
+
+  const layout = {}
+  if (node.layoutMode) layout.mode = node.layoutMode
+  if (node.primaryAxisAlignItems) layout.primaryAxisAlignItems = node.primaryAxisAlignItems
+  if (node.counterAxisAlignItems) layout.counterAxisAlignItems = node.counterAxisAlignItems
+  if (node.itemSpacing !== undefined) layout.itemSpacing = node.itemSpacing
+  if (node.cornerRadius !== undefined) layout.cornerRadius = node.cornerRadius
+
+  const style = {}
+  if (node.style?.fontFamily) style.fontFamily = node.style.fontFamily
+  if (node.style?.fontWeight) style.fontWeight = node.style.fontWeight
+  if (node.style?.fontSize) style.fontSize = node.style.fontSize
+  if (node.style?.textAlignHorizontal) style.textAlign = node.style.textAlignHorizontal
+
+  const summary = {
+    name: node.name,
+    type: node.type,
+  }
+
+  if (typeof node.characters === 'string' && node.characters.trim()) {
+    summary.characters = node.characters.trim()
+  }
+  if (Object.keys(layout).length > 0) summary.layout = layout
+  if (Object.keys(style).length > 0) summary.style = style
+
+  const color = fillToHex(node.fills)
+  if (color) summary.color = color
+
+  if (node.absoluteBoundingBox) {
+    const box = node.absoluteBoundingBox
+    summary.box = { x: box.x, y: box.y, width: box.width, height: box.height }
+  }
+
+  const children = Array.isArray(node.children) ? node.children : []
+  if (children.length > 0 && depth < MAX_SUMMARY_DEPTH) {
+    const mapped = []
+    for (const child of children.slice(0, MAX_CHILDREN_PER_NODE)) {
+      if (counter.count >= MAX_SUMMARY_NODES) break
+      const childSummary = summarizeNode(child, depth + 1, counter)
+      if (childSummary) mapped.push(childSummary)
+    }
+    if (mapped.length > 0) summary.children = mapped
+  }
+
+  return summary
+}
+
 function summarizeFigmaData(data) {
   const document = data?.document ?? {}
   const rootChildren = Array.isArray(document.children) ? document.children : []
+  const counter = { count: 0 }
+
   return {
     name: document.name,
     type: document.type,
     nodeCount: rootChildren.reduce((total, child) => total + countNodes(child), 0),
-    children: rootChildren.slice(0, 10).map((child) => ({
-      name: child?.name,
-      type: child?.type,
-      layoutMode: child?.layoutMode,
-      characters: child?.characters,
-      box: child?.absoluteBoundingBox
-        ? {
-            x: child.absoluteBoundingBox.x,
-            y: child.absoluteBoundingBox.y,
-            width: child.absoluteBoundingBox.width,
-            height: child.absoluteBoundingBox.height,
-          }
-        : undefined,
-      children: Array.isArray(child?.children)
-        ? child.children.slice(0, 12).map((grandChild) => ({
-            name: grandChild?.name,
-            type: grandChild?.type,
-            characters: grandChild?.characters,
-          }))
-        : [],
-    })),
+    children: rootChildren
+      .slice(0, 10)
+      .map((child) => summarizeNode(child, 0, counter))
+      .filter(Boolean),
   }
 }
 
@@ -95,341 +156,288 @@ function pickBrandName(summary) {
   return values[0] ?? summary.name ?? 'Haven'
 }
 
-function buildLocalBundle(summary, prompt) {
-  const brandName = pickBrandName(summary)
-  const textValues = []
-  for (const child of summary.children ?? []) {
-    textValues.push(...extractTextNodes(child))
+const CTA_WORDS = new Set([
+  'sign in', 'log in', 'login', 'submit', 'continue', 'get started',
+  'sign up', 'register', 'send', 'next', 'confirm', 'save', 'search', 'subscribe',
+])
+const INPUT_NAME_PATTERN = /input|field|email|password|username|search/i
+const PASSWORD_PATTERN = /password/i
+const EMAIL_PATTERN = /email|username/i
+
+function escapeJsxText(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\{/g, '&#123;')
+    .replace(/\}/g, '&#125;')
+    .replace(/"/g, '&quot;')
+}
+
+function slugify(value) {
+  const slug = String(value ?? 'field')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+  return slug || 'field'
+}
+
+function humanizeName(value) {
+  return String(value ?? 'Field')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function inputType(name, label) {
+  const probe = `${name ?? ''} ${label ?? ''}`
+  if (PASSWORD_PATTERN.test(probe)) return 'password'
+  if (EMAIL_PATTERN.test(probe)) return 'email'
+  return 'text'
+}
+
+function collectFrames(summary) {
+  const frames = []
+  for (const page of summary.children ?? []) {
+    if (Array.isArray(page.children) && page.children.length > 0) {
+      frames.push(...page.children)
+    } else {
+      frames.push(page)
+    }
+  }
+  return frames.length > 0 ? frames : summary.children ?? []
+}
+
+function findInputMatches(node, matches) {
+  if (!node || typeof node !== 'object') {
+    return false
   }
 
-  const heading = textValues.find((value) => value.toLowerCase().includes('sign in')) ?? 'Sign in'
-  const footerLinks = textValues.some((value) => value.toLowerCase().includes('privacy'))
-    ? ['Privacy', 'Help']
-    : ['Privacy', 'Need help?']
-  const subtitle = prompt?.trim() || 'Use your account credentials to continue.'
+  let childMatched = false
+  for (const child of node.children ?? []) {
+    if (findInputMatches(child, matches)) {
+      childMatched = true
+    }
+  }
 
-  const app = `export default function App() {
+  if (!childMatched && !node.characters && typeof node.name === 'string' && INPUT_NAME_PATTERN.test(node.name)) {
+    matches.add(node)
+    return true
+  }
+
+  return childMatched
+}
+
+function collectEntries(node, entries, inputMatches) {
+  if (!node || typeof node !== 'object') {
+    return
+  }
+
+  if (inputMatches.has(node)) {
+    entries.push({ kind: 'input', name: node.name })
+    return
+  }
+
+  if (typeof node.characters === 'string' && node.characters.trim()) {
+    entries.push({ kind: 'text', text: node.characters.trim(), name: node.name })
+  }
+
+  for (const child of node.children ?? []) {
+    collectEntries(child, entries, inputMatches)
+  }
+}
+
+function classifyEntries(entries) {
+  const buttons = []
+  const inputs = []
+  const texts = []
+  const seenButtons = new Set()
+
+  entries.forEach((entry) => {
+    if (entry.kind === 'input') {
+      const label = texts.length > 0 ? texts.pop().text : humanizeName(entry.name)
+      inputs.push({ name: entry.name, label })
+      return
+    }
+
+    const normalized = entry.text.toLowerCase()
+    const isButton = CTA_WORDS.has(normalized) || (entry.name && /button|cta/i.test(entry.name))
+    if (isButton && !seenButtons.has(normalized)) {
+      seenButtons.add(normalized)
+      buttons.push(entry.text)
+    } else if (!isButton) {
+      texts.push(entry)
+    }
+  })
+
+  return { buttons, inputs, texts }
+}
+
+function renderSection(frame, index) {
+  const inputMatches = new Set()
+  findInputMatches(frame, inputMatches)
+  const entries = []
+  collectEntries(frame, entries, inputMatches)
+  const { buttons, inputs, texts } = classifyEntries(entries)
+
+  if (texts.length === 0 && inputs.length === 0 && buttons.length === 0) {
+    return null
+  }
+
+  const heading = escapeJsxText(texts[0]?.text ?? frame.name ?? `Section ${index + 1}`)
+  const lines = [
+    '          <IxCard className="generated-block">',
+    `            <IxCardTitle>${heading}</IxCardTitle>`,
+    '            <IxCardContent>',
+  ]
+
+  texts.slice(1).forEach((entry) => {
+    lines.push(`              <IxTypography format="body" textColor="soft">${escapeJsxText(entry.text)}</IxTypography>`)
+  })
+
+  if (inputs.length > 0 || buttons.length > 0) {
+    lines.push('              <form className="generated-form">')
+    inputs.forEach((entry) => {
+      const type = inputType(entry.name, entry.label)
+      const label = escapeJsxText(entry.label)
+      lines.push(
+        `                <IxInput type="${type}" name="${slugify(entry.label)}" label="${label}" placeholder="${label}"></IxInput>`,
+      )
+    })
+    buttons.forEach((text) => {
+      lines.push(`                <IxButton type="button">${escapeJsxText(text)}</IxButton>`)
+    })
+    lines.push('              </form>')
+  }
+
+  lines.push('            </IxCardContent>')
+  lines.push('          </IxCard>')
+  return lines.join('\n')
+}
+
+function collectColors(node, bag) {
+  if (!node || typeof node !== 'object') {
+    return
+  }
+
+  if (node.color) bag.push(node.color)
+  for (const child of node.children ?? []) {
+    collectColors(child, bag)
+  }
+}
+
+function isNeutralHex(hex) {
+  const value = hex.replace('#', '')
+  const r = parseInt(value.slice(0, 2), 16)
+  const g = parseInt(value.slice(2, 4), 16)
+  const b = parseInt(value.slice(4, 6), 16)
+  return Math.max(r, g, b) - Math.min(r, g, b) < 18
+}
+
+function pickAccentColor(frames) {
+  const bag = []
+  frames.forEach((frame) => collectColors(frame, bag))
+  return bag.find((hex) => !isNeutralHex(hex)) ?? '#34664f'
+}
+
+function darken(hex, amount = 0.18) {
+  const value = hex.replace('#', '')
+  const r = parseInt(value.slice(0, 2), 16)
+  const g = parseInt(value.slice(2, 4), 16)
+  const b = parseInt(value.slice(4, 6), 16)
+  const factor = 1 - amount
+  const toHex = (channel) => Math.max(0, Math.round(channel * factor)).toString(16).padStart(2, '0')
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function buildLocalBundle(summary, prompt) {
+  const frames = collectFrames(summary)
+  const brandName = pickBrandName(summary)
+  const pageTitle = frames[0]?.name || summary.name || 'Generated screen'
+  const subtitle = prompt?.trim() || 'Generated automatically from your Figma design.'
+  const accent = pickAccentColor(frames)
+  const accentStrong = darken(accent)
+
+  const sections = frames.map((frame, index) => renderSection(frame, index)).filter(Boolean)
+  const bodySections = sections.length > 0
+    ? sections.join('\n')
+    : `          <IxCard className="generated-block">
+            <IxCardTitle>${escapeJsxText(pageTitle)}</IxCardTitle>
+            <IxCardContent>
+              <IxTypography format="body" textColor="soft">
+                No text or input layers were found in this Figma file yet. Add layers with real content to see them reflected here.
+              </IxTypography>
+            </IxCardContent>
+          </IxCard>`
+
+  const app = `import {
+  IxApplication,
+  IxApplicationHeader,
+  IxContent,
+  IxCard,
+  IxCardTitle,
+  IxCardContent,
+  IxInput,
+  IxButton,
+  IxTypography,
+} from '@siemens/ix-react'
+
+export default function App() {
   return (
-    <div className="dashboard-shell">
-      <main className="dashboard-grid">
-        <section className="hero-panel">
-          <div className="brand-lockup">
-            <div className="brand-mark" aria-hidden="true">
-              <span className="brand-leaf" />
-            </div>
-            <div>
-              <p className="eyebrow">${brandName}</p>
-              <h1>${heading}</h1>
-            </div>
-          </div>
-          <p className="subtitle">${subtitle}</p>
-
-          <div className="preview-card">
-            <p className="preview-label">Generated from Figma summary</p>
-            <ul>
-              <li>Responsive card layout</li>
-              <li>Accessible form controls</li>
-              <li>Backend-driven generation flow</li>
-            </ul>
-          </div>
-        </section>
-
-        <section className="form-panel">
-          <form className="login-form">
-            <label>
-              <span>Email</span>
-              <input type="email" name="email" placeholder="you@example.com" autoComplete="email" />
-            </label>
-
-            <label>
-              <span>Password</span>
-              <input type="password" name="password" placeholder="Enter your password" autoComplete="current-password" />
-            </label>
-
-            <div className="form-row">
-              <label className="checkbox-row">
-                <input type="checkbox" name="remember" />
-                <span>Remember me</span>
-              </label>
-              <a href="#recover">Forgot password?</a>
-            </div>
-
-            <button type="submit">Continue</button>
-          </form>
-
-          <footer className="page-footer">
-            <span>© Haven</span>
-            <nav aria-label="Support links">
-              <a href="#privacy">${footerLinks[0]}</a>
-              <a href="#help">${footerLinks[1]}</a>
-            </nav>
-          </footer>
-        </section>
-      </main>
-    </div>
+    <IxApplication style={{ '--theme-color-primary': '${accent}' }}>
+      <IxApplicationHeader slot="application-header" name="${escapeJsxText(brandName)}"></IxApplicationHeader>
+      <IxContent>
+        <div className="generated-grid">
+          <header className="generated-header">
+            <IxTypography format="h1">${escapeJsxText(pageTitle)}</IxTypography>
+            <IxTypography format="body" textColor="soft">${escapeJsxText(subtitle)}</IxTypography>
+          </header>
+${bodySections}
+        </div>
+      </IxContent>
+    </IxApplication>
   )
 }
 `
 
-  const styles = `:root {
-  color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  --bg: #f4f1e7;
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-strong: rgba(255, 255, 255, 0.96);
-  --text: #1b201d;
-  --muted: #5d665e;
-  --accent: #34664f;
-  --accent-strong: #254b3b;
-  --border: rgba(27, 32, 29, 0.12);
-  --shadow: 0 24px 80px rgba(17, 23, 20, 0.12);
-}
+  const styles = `/*
+ * This file only contains layout rules. Buttons, inputs, cards, and
+ * typography are styled by the Siemens iX design system itself. The app
+ * that renders this file must import the iX stylesheets once, e.g. in
+ * main.jsx:
+ *
+ *   import '@siemens/ix/dist/siemens-ix/siemens-ix.css'
+ *   import '@siemens/ix/dist/siemens-ix/theme/classic-light.css'
+ *
+ * and have these packages installed:
+ *
+ *   npm install @siemens/ix @siemens/ix-react @siemens/ix-icons
+ */
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  min-height: 100%;
-}
-
-body {
-  margin: 0;
-  color: var(--text);
-  background:
-    radial-gradient(circle at top, rgba(52, 102, 79, 0.16), transparent 35%),
-    linear-gradient(180deg, #faf9f4 0%, #efece2 100%);
-}
-
-a {
-  color: inherit;
-}
-
-.dashboard-shell {
-  min-height: 100vh;
+.generated-grid {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 20px;
   padding: 32px 20px;
 }
 
-.dashboard-grid {
-  width: min(1120px, 100%);
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 24px;
-  align-items: stretch;
-}
-
-.hero-panel,
-.form-panel {
-  padding: 32px;
-  border-radius: 28px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
-}
-
-.hero-panel {
-  display: grid;
-  align-content: space-between;
-  gap: 24px;
-}
-
-.brand-lockup {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-
-.brand-mark {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
-  background: var(--accent);
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-}
-
-.brand-leaf {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px 999px 999px 0;
-  border: 2px solid rgba(255, 255, 255, 0.96);
-  border-left-color: transparent;
-  border-bottom-color: transparent;
-  transform: rotate(45deg);
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 4vw, 3.4rem);
-  line-height: 1;
-}
-
-.subtitle {
-  margin: 18px 0 0;
-  max-width: 54ch;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.6;
-}
-
-.preview-card {
-  padding: 20px;
-  border-radius: 22px;
-  background: var(--surface-strong);
-  border: 1px solid var(--border);
-}
-
-.preview-label {
-  margin: 0 0 12px;
-  font-size: 0.82rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.preview-card ul {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text);
-  display: grid;
-  gap: 10px;
-}
-
-.login-form {
-  display: grid;
-  gap: 16px;
-}
-
-.login-form label {
+.generated-header {
   display: grid;
   gap: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  margin-bottom: 8px;
 }
 
-.login-form span {
-  color: var(--text);
-}
-
-.login-form input {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--text);
-  padding: 14px 16px;
-  font: inherit;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.login-form input:focus {
-  outline: none;
-  border-color: rgba(52, 102, 79, 0.55);
-  box-shadow: 0 0 0 4px rgba(52, 102, 79, 0.12);
-}
-
-.form-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 0.92rem;
-}
-
-.checkbox-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-}
-
-.checkbox-row input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--accent);
-}
-
-.form-row a,
-.page-footer a {
-  color: var(--accent-strong);
-  text-decoration: none;
-}
-
-.login-form button {
-  margin-top: 4px;
-  border: 0;
-  border-radius: 16px;
-  padding: 14px 18px;
-  background: var(--accent);
-  color: white;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 16px 28px rgba(52, 102, 79, 0.24);
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-
-.login-form button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(52, 102, 79, 0.28);
-}
-
-.page-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.generated-form {
+  display: grid;
   gap: 16px;
-  margin-top: 24px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.page-footer nav {
-  display: inline-flex;
-  gap: 18px;
-}
-
-@media (max-width: 900px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
+  margin-top: 16px;
+  max-width: 420px;
 }
 
 @media (max-width: 560px) {
-  .dashboard-shell {
-    padding: 16px;
-  }
-
-  .hero-panel,
-  .form-panel {
-    padding: 22px;
-    border-radius: 22px;
-  }
-
-  .brand-lockup {
-    align-items: flex-start;
-  }
-
-  .form-row,
-  .page-footer {
-    flex-direction: column;
-    align-items: flex-start;
+  .generated-grid {
+    padding: 20px 16px;
   }
 }
 `
@@ -445,33 +453,81 @@ function escapeScriptContent(value) {
 }
 
 function normalizeAppCodeForPreview(value) {
-  return String(value ?? '')
-    .replace(/^\s*import\s+[^\n]*from\s+['"][^'"]+['"];?\s*$/gm, '')
-    .replace(/^\s*export\s+default\s+/gm, '')
-    .trim()
+  return String(value ?? '').trim()
 }
 
 function buildPreviewDocument(appCode, stylesCode) {
-  const safeAppCode = escapeScriptContent(normalizeAppCodeForPreview(appCode))
+  const transformedAppCode = normalizeAppCodeForPreview(appCode)
+  const appCodeJson = escapeScriptContent(JSON.stringify(transformedAppCode))
   const safeStylesCode = String(stylesCode ?? '')
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-ix-theme="classic" data-ix-color-schema="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Generated Preview</title>
-    <style>${safeStylesCode}</style>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@siemens/ix/dist/siemens-ix/siemens-ix.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@siemens/ix/dist/siemens-ix/theme/classic-light.css" />
+    <style>
+      ${safeStylesCode}
+      .preview-error {
+        margin: 24px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        background: #fdecea;
+        border: 1px solid #f3b4ad;
+        color: #7c2d22;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        font-size: 0.85rem;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18.3.1",
+          "react-dom": "https://esm.sh/react-dom@18.3.1?external=react",
+          "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?external=react",
+          "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+          "@siemens/ix-react": "https://esm.sh/@siemens/ix-react@5.3.0?external=react,react-dom",
+          "@siemens/ix-icons": "https://esm.sh/@siemens/ix-icons@3.7.0"
+        }
+      }
+    </script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="text/babel" data-presets="react">
-      const { useEffect, useMemo, useState } = React;
-      ${safeAppCode}
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<App />);
+    <script>
+      window.addEventListener('error', (event) => {
+        const root = document.getElementById('root');
+        if (root && !root.hasChildNodes()) {
+          root.innerHTML = '<div class="preview-error">' + (event?.error?.message || event.message || 'Unknown preview error') + '</div>';
+        }
+      });
+
+      (async () => {
+        try {
+          const rawCode = ${appCodeJson};
+          const transformed = Babel.transform(rawCode, {
+            presets: [['react', { runtime: 'automatic' }]],
+            filename: 'App.jsx',
+          }).code;
+          const blob = new Blob([transformed], { type: 'text/javascript' });
+          const moduleUrl = URL.createObjectURL(blob);
+          const [{ default: App }, { createElement }, { createRoot }] = await Promise.all([
+            import(moduleUrl),
+            import('react'),
+            import('react-dom/client'),
+          ]);
+          URL.revokeObjectURL(moduleUrl);
+          const root = createRoot(document.getElementById('root'));
+          root.render(createElement(App));
+        } catch (error) {
+          const container = document.getElementById('root');
+          container.innerHTML = '<div class="preview-error">' + (error && error.message ? error.message : String(error)) + '</div>';
+        }
+      })();
     </script>
   </body>
 </html>`
@@ -533,12 +589,22 @@ async function fetchFigmaFile(fileKey, token) {
   return response.json()
 }
 
+function parseFigmaFileKey(input) {
+  const value = String(input ?? '').trim()
+  if (!value) {
+    return ''
+  }
+
+  const urlMatch = value.match(/figma\.com\/(?:file|design|proto)\/([a-zA-Z0-9]+)/)
+  return urlMatch ? urlMatch[1] : value
+}
+
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true })
 })
 
 app.post('/api/extract-figma', async (request, response) => {
-  const fileKey = String(request.body.fileKey ?? '').trim()
+  const fileKey = parseFigmaFileKey(request.body.fileKey)
   const token = String(request.body.token ?? '').trim()
   const outputPath = resolveWorkspacePath(request.body.outputPath, DEFAULT_FIGMA_JSON_PATH)
 
@@ -548,13 +614,38 @@ app.post('/api/extract-figma', async (request, response) => {
 
   try {
     const figmaData = await fetchFigmaFile(fileKey, token)
-    await fs.writeFile(outputPath, `${JSON.stringify(figmaData, null, 2)}\n`, 'utf8')
+    const serialized = `${JSON.stringify(figmaData, null, 2)}\n`
+    await fs.writeFile(outputPath, serialized, 'utf8')
     return response.json({
       ok: true,
       outputPath,
+      size: Buffer.byteLength(serialized, 'utf8'),
+      raw: figmaData,
       summary: summarizeFigmaData(figmaData),
     })
   } catch (error) {
+    return response.status(500).json({ error: error.message })
+  }
+})
+
+app.get('/api/figma-json', async (request, response) => {
+  const jsonPath = resolveWorkspacePath(request.query.path, DEFAULT_FIGMA_JSON_PATH)
+
+  try {
+    const [raw, stats] = await Promise.all([fs.readFile(jsonPath, 'utf8'), fs.stat(jsonPath)])
+    const figmaData = JSON.parse(raw)
+    return response.json({
+      ok: true,
+      path: jsonPath,
+      size: stats.size,
+      modifiedAt: stats.mtime,
+      raw: figmaData,
+      summary: summarizeFigmaData(figmaData),
+    })
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return response.status(404).json({ error: `No Figma JSON file found at ${jsonPath}.` })
+    }
     return response.status(500).json({ error: error.message })
   }
 })
@@ -573,6 +664,7 @@ app.post('/api/generate-react', async (request, response) => {
 
     let mode = 'local'
     let files = buildLocalBundle(summary, prompt)
+    let remoteError
 
     if (apiKey) {
       try {
@@ -589,7 +681,7 @@ app.post('/api/generate-react', async (request, response) => {
               {
                 role: 'system',
                 content:
-                  'You are a senior front-end engineer. Return only file-marked React code blocks for App.jsx and styles.css.',
+                  'You are a senior front-end engineer. Build the UI using the Siemens iX design system via the "@siemens/ix-react" package (components like IxApplication, IxApplicationHeader, IxContent, IxCard, IxCardTitle, IxCardContent, IxButton, IxInput, IxTextarea, IxTypography) instead of plain HTML elements wherever a matching component exists. Return only file-marked React code blocks for App.jsx and styles.css.',
               },
               {
                 role: 'user',
@@ -606,10 +698,14 @@ app.post('/api/generate-react', async (request, response) => {
           if (Object.keys(extracted).length > 0) {
             files = extracted
             mode = 'remote'
+          } else {
+            remoteError = 'Remote response did not contain recognizable code blocks.'
           }
+        } else {
+          remoteError = `Remote API responded with ${remoteResponse.status} ${remoteResponse.statusText}.`
         }
-      } catch {
-        mode = 'local'
+      } catch (error) {
+        remoteError = error.message
       }
     }
 
@@ -621,6 +717,7 @@ app.post('/api/generate-react', async (request, response) => {
       files,
       writtenPaths,
       summary,
+      remoteError,
     })
   } catch (error) {
     return response.status(500).json({ error: error.message })

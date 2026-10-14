@@ -1,0 +1,73 @@
+- generic [ref=f7e3]:
+  - banner [ref=f7e4]:
+    - generic [ref=f7e6]:
+      - generic [ref=f7e7]: Figma to React Studio
+      - generic [ref=f7e8]: Siemens iX
+    - generic [ref=f7e9]: Backend checking
+  - generic [ref=f7e14]:
+    - complementary
+    - generic [ref=f7e15]:
+      - main [ref=f7e16]:
+        - generic [ref=f7e20]:
+          - generic [ref=f7e21]:
+            - generic [ref=f7e25]:
+              - generic [ref=f7e26]: Extract, inspect, and generate
+              - generic [ref=f7e27]: Pull a Figma file into JSON, review it right here, then generate a Siemens iX React screen from it.
+            - generic [ref=f7e28]:
+              - alert [ref=f7e30]:
+                - generic [ref=f7e37]: Ready to extract Figma data or generate React code.
+              - button "Reset session" [ref=f7e39] [cursor=pointer]
+            - generic [ref=f7e42] [cursor=pointer]:
+              - generic:
+                - generic [ref=f7e43]: Backend flow
+                - list [ref=f7e46]:
+                  - listitem [ref=f7e47]: POST /api/extract-figma saves Figma JSON and returns it for preview
+                  - listitem [ref=f7e48]: GET /api/figma-json re-loads a previously saved file
+                  - listitem [ref=f7e49]: POST /api/generate-react returns Siemens iX powered App.jsx and styles.css
+          - generic [ref=f7e50]:
+            - generic [ref=f7e52] [cursor=pointer]:
+              - generic:
+                - generic [ref=f7e53]: Figma extraction
+                - generic [ref=f7e56]:
+                  - generic [ref=f7e57]:
+                    - textbox "Figma file key" [ref=f7e66]:
+                      - /placeholder: e.g. AbCdEf123 or a full figma.com/file/... URL
+                    - generic [ref=f7e74]:
+                      - textbox "Figma token" [ref=f7e75]:
+                        - /placeholder: Personal access token
+                      - button "Eye" [ref=f7e78]
+                    - textbox "JSON output path" [ref=f7e87]:
+                      - /placeholder: figma_design.json
+                      - text: figma_design.json
+                  - generic [ref=f7e88]:
+                    - button "Save Figma JSON" [ref=f7e90]
+                    - button "Load saved JSON" [ref=f7e93]
+            - generic [ref=f7e96] [cursor=pointer]:
+              - generic:
+                - generic [ref=f7e97]: React generation
+                - generic [ref=f7e100]:
+                  - generic [ref=f7e101]:
+                    - textbox "Prompt" [ref=f7e110]: Create a polished React screen from the provided Figma design using Siemens iX components.
+                    - generic [ref=f7e118]:
+                      - textbox "LLM API key" [ref=f7e119]:
+                        - /placeholder: "Optional: remote generation"
+                      - button "Eye" [ref=f7e122]
+                    - generic [ref=f7e123]:
+                      - textbox "Base URL" [ref=f7e132]: https://api.x.ai/v1
+                      - textbox "Model" [ref=f7e141]: grok-3-mini
+                    - textbox "Output directory" [ref=f7e150]:
+                      - /placeholder: generated_react
+                      - text: generated_react
+                  - button "Generate React Files" [ref=f7e153]
+            - generic [ref=f7e158] [cursor=pointer]:
+              - generic:
+                - tablist [ref=f7e162]:
+                  - generic:
+                    - tab "Figma JSON" [selected] [ref=f7e163]
+                    - tab "Code" [ref=f7e165]
+                    - tab "Visualize" [ref=f7e167]
+                - paragraph [ref=f7e170]:
+                  - text: No Figma JSON loaded yet. Save a new extraction or load an existing
+                  - code [ref=f7e171]: figma_design.json
+                  - text: file.
+      - contentinfo

@@ -1,0 +1,98 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: Figma to React Studio
+      - generic [ref=e8]: Siemens iX
+    - generic [ref=e9]: Backend online
+  - generic [ref=e14]:
+    - complementary
+    - generic [ref=e15]:
+      - main [ref=e16]:
+        - generic [ref=e20]:
+          - generic [ref=e21]:
+            - generic [ref=e25]:
+              - generic [ref=e26]: Extract, inspect, and generate
+              - generic [ref=e27]: Pull a Figma file into JSON, review it right here, then generate a Siemens iX React screen from it.
+            - generic [ref=e28]:
+              - alert [ref=e30]:
+                - generic [ref=e37]: Generated 2 file(s) using local mode.
+              - button "Reset session" [ref=e39] [cursor=pointer]
+            - generic [ref=e42] [cursor=pointer]:
+              - generic:
+                - generic [ref=e43]: Backend flow
+                - list [ref=e46]:
+                  - listitem [ref=e47]: POST /api/extract-figma saves Figma JSON and returns it for preview
+                  - listitem [ref=e48]: GET /api/figma-json re-loads a previously saved file
+                  - listitem [ref=e49]: POST /api/generate-react returns Siemens iX powered App.jsx and styles.css
+            - generic [ref=e177] [cursor=pointer]:
+              - generic:
+                - generic [ref=e178]: Current summary
+                - generic [ref=e181]:
+                  - generic [ref=e182]:
+                    - term [ref=e183]: Name
+                    - definition [ref=e184]: Document
+                  - generic [ref=e185]:
+                    - term [ref=e186]: Type
+                    - definition [ref=e187]: DOCUMENT
+                  - generic [ref=e188]:
+                    - term [ref=e189]: Nodes
+                    - definition [ref=e190]: "35"
+            - generic [ref=e209] [cursor=pointer]:
+              - generic:
+                - generic [ref=e210]: Last generation
+                - generic [ref=e213]:
+                  - generic [ref=e214]: "Mode: local"
+                  - generic [ref=e215]: "Output: C:\\Users\\z00543ct\\Desktop\\Trio\\generated_react"
+                  - generic [ref=e216]: "Files: 2"
+          - generic [ref=e50]:
+            - generic [ref=e52] [cursor=pointer]:
+              - generic:
+                - generic [ref=e53]: Figma extraction
+                - generic [ref=e56]:
+                  - generic [ref=e57]:
+                    - textbox "Figma file key" [ref=e66]:
+                      - /placeholder: e.g. AbCdEf123 or a full figma.com/file/... URL
+                    - generic [ref=e74]:
+                      - textbox "Figma token" [ref=e75]:
+                        - /placeholder: Personal access token
+                      - button "Eye" [ref=e78]
+                    - textbox "JSON output path" [ref=e87]:
+                      - /placeholder: figma_design.json
+                      - text: figma_design.json
+                  - generic [ref=e88]:
+                    - button "Save Figma JSON" [ref=e90]
+                    - button "Load saved JSON" [ref=e93]
+            - generic [ref=e96] [cursor=pointer]:
+              - generic:
+                - generic [ref=e97]: React generation
+                - generic [ref=e100]:
+                  - generic [ref=e101]:
+                    - textbox "Prompt" [ref=e110]: Create a polished React screen from the provided Figma design using Siemens iX components.
+                    - generic [ref=e118]:
+                      - textbox "LLM API key" [ref=e119]:
+                        - /placeholder: "Optional: remote generation"
+                      - button "Eye" [ref=e122]
+                    - generic [ref=e123]:
+                      - textbox "Base URL" [ref=e132]: https://api.x.ai/v1
+                      - textbox "Model" [ref=e141]: grok-3-mini
+                    - textbox "Output directory" [ref=e150]:
+                      - /placeholder: generated_react
+                      - text: generated_react
+                  - button "Generate React Files" [ref=e153]
+            - generic [ref=e158] [cursor=pointer]:
+              - generic:
+                - tablist [ref=e162]:
+                  - generic:
+                    - tab "Figma JSON" [ref=e163]
+                    - tab "Code" [selected] [ref=e165]
+                    - tab "Visualize" [ref=e167]
+                - generic [ref=e169]:
+                  - generic [ref=e217]:
+                    - generic [ref=e218]:
+                      - button "App.jsx" [ref=e220]
+                      - button "styles.css" [ref=e223]
+                    - generic [ref=e225]:
+                      - button "Copy" [ref=e227]
+                      - button "Download" [ref=e230]
+                  - code [ref=e233]: "import { IxApplication, IxApplicationHeader, IxContent, IxCard, IxCardTitle, IxCardContent, IxInput, IxButton, IxTypography, } from '@siemens/ix-react' export default function App() { return ( <IxApplication style={{ '--theme-color-primary': '#326754' }}> <IxApplicationHeader slot=\"application-header\" name=\"haven\"></IxApplicationHeader> <IxContent> <div className=\"generated-grid\"> <header className=\"generated-header\"> <IxTypography format=\"h1\">Sign in</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">Create a polished React screen from the provided Figma design using Siemens iX components.</IxTypography> </header> <IxCard className=\"generated-block\"> <IxCardTitle>haven</IxCardTitle> <IxCardContent> <IxTypography format=\"body\" textColor=\"soft\">Welcome back</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">A little less noise. A little more focus. Sign in to your Haven account.</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">Forgot password?</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">New to Haven?</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">Create an account</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">© 2026 Haven</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">Privacy</IxTypography> <IxTypography format=\"body\" textColor=\"soft\">Need help?</IxTypography> <form className=\"generated-form\"> <IxInput type=\"email\" name=\"email-address\" label=\"Email address\" placeholder=\"Email address\"></IxInput> <IxInput type=\"password\" name=\"password\" label=\"Password\" placeholder=\"Password\"></IxInput> <IxButton type=\"button\">Sign in</IxButton> </form> </IxCardContent> </IxCard> </div> </IxContent> </IxApplication> ) }"
+      - contentinfo

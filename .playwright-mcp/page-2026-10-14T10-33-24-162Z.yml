@@ -1,0 +1,90 @@
+- generic [ref=f3e3]:
+  - banner [ref=f3e4]:
+    - generic [ref=f3e6]:
+      - generic [ref=f3e7]: Figma to React Studio
+      - generic [ref=f3e8]: Siemens iX
+    - generic [ref=f3e9]: Backend online
+  - generic [ref=f3e14]:
+    - complementary
+    - generic [ref=f3e15]:
+      - main [ref=f3e16]:
+        - generic [ref=f3e20]:
+          - generic [ref=f3e21]:
+            - generic [ref=f3e25]:
+              - generic [ref=f3e26]: Extract, inspect, and generate
+              - generic [ref=f3e27]: Pull a Figma file into JSON, review it right here, then generate a Siemens iX React screen from it.
+            - generic [ref=f3e28]:
+              - alert [ref=f3e30]:
+                - generic [ref=f3e37]: Preview is ready.
+              - button "Reset session" [ref=f3e39] [cursor=pointer]
+            - generic [ref=f3e42] [cursor=pointer]:
+              - generic:
+                - generic [ref=f3e43]: Backend flow
+                - list [ref=f3e46]:
+                  - listitem [ref=f3e47]: POST /api/extract-figma saves Figma JSON and returns it for preview
+                  - listitem [ref=f3e48]: GET /api/figma-json re-loads a previously saved file
+                  - listitem [ref=f3e49]: POST /api/generate-react returns Siemens iX powered App.jsx and styles.css
+            - generic [ref=f3e177] [cursor=pointer]:
+              - generic:
+                - generic [ref=f3e178]: Current summary
+                - generic [ref=f3e181]:
+                  - generic [ref=f3e182]:
+                    - term [ref=f3e183]: Name
+                    - definition [ref=f3e184]: Document
+                  - generic [ref=f3e185]:
+                    - term [ref=f3e186]: Type
+                    - definition [ref=f3e187]: DOCUMENT
+                  - generic [ref=f3e188]:
+                    - term [ref=f3e189]: Nodes
+                    - definition [ref=f3e190]: "35"
+            - generic [ref=f3e209] [cursor=pointer]:
+              - generic:
+                - generic [ref=f3e210]: Last generation
+                - generic [ref=f3e213]:
+                  - generic [ref=f3e214]: "Mode: local"
+                  - generic [ref=f3e215]: "Output: C:\\Users\\z00543ct\\Desktop\\Trio\\generated_react"
+                  - generic [ref=f3e216]: "Files: 2"
+          - generic [ref=f3e50]:
+            - generic [ref=f3e52] [cursor=pointer]:
+              - generic:
+                - generic [ref=f3e53]: Figma extraction
+                - generic [ref=f3e56]:
+                  - generic [ref=f3e57]:
+                    - textbox "Figma file key" [ref=f3e66]:
+                      - /placeholder: e.g. AbCdEf123 or a full figma.com/file/... URL
+                    - generic [ref=f3e74]:
+                      - textbox "Figma token" [ref=f3e75]:
+                        - /placeholder: Personal access token
+                      - button "Eye" [ref=f3e78]
+                    - textbox "JSON output path" [ref=f3e87]:
+                      - /placeholder: figma_design.json
+                      - text: figma_design.json
+                  - generic [ref=f3e88]:
+                    - button "Save Figma JSON" [ref=f3e90]
+                    - button "Load saved JSON" [ref=f3e93]
+            - generic [ref=f3e96] [cursor=pointer]:
+              - generic:
+                - generic [ref=f3e97]: React generation
+                - generic [ref=f3e100]:
+                  - generic [ref=f3e101]:
+                    - textbox "Prompt" [ref=f3e110]: Create a polished React screen from the provided Figma design using Siemens iX components.
+                    - generic [ref=f3e118]:
+                      - textbox "LLM API key" [ref=f3e119]:
+                        - /placeholder: "Optional: remote generation"
+                      - button "Eye" [ref=f3e122]
+                    - generic [ref=f3e123]:
+                      - textbox "Base URL" [ref=f3e132]: https://api.x.ai/v1
+                      - textbox "Model" [ref=f3e141]: grok-3-mini
+                    - textbox "Output directory" [ref=f3e150]:
+                      - /placeholder: generated_react
+                      - text: generated_react
+                  - button "Generate React Files" [ref=f3e153]
+            - generic [ref=f3e158] [cursor=pointer]:
+              - generic:
+                - tablist [ref=f3e162]:
+                  - generic:
+                    - tab "Figma JSON" [ref=f3e163]
+                    - tab "Code" [ref=f3e165]
+                    - tab "Visualize" [active] [selected] [ref=f3e167]
+                - iframe [ref=f3e239]
+      - contentinfo
